@@ -95,7 +95,9 @@ def generate_customers(rng: np.random.Generator, n: int) -> pd.DataFrame:
     package_names = [PACKAGES[i][1] for i in pkg_idx]
 
     # Status: active 85 / suspended 3 / churned 12 (churned biased to longer tenure)
-    status = np.array(["active"] * n)
+    # Use object dtype so longer values ("suspended" 9 chars) are not truncated
+    # from the initial 6-char "active" unicode dtype (numpy truncation bug).
+    status = np.array(["active"] * n, dtype=object)
     churn_mask = rng.random(n) < 0.12
     suspended_mask = (~churn_mask) & (rng.random(n) < 0.03)
     status[churn_mask] = "churned"

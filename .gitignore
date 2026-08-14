@@ -32,5 +32,10 @@ Thumbs.db
 
 # Data
 backend/data/
+backend/app/data/
 *.db
 *.sqlite3
+
+# ML artifacts
+backend/catboost_info/
+*.joblib

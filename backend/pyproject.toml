@@ -19,6 +19,8 @@ dependencies = [
     "xgboost>=2.1",
     "lightgbm>=4.5",
     "shap>=0.46",
+    "catboost>=1.2",
+    "joblib>=1.4",
 ]
 
 [dependency-groups]
@@ -44,6 +46,9 @@ ignore = ["E501"]  # line-length enforced by ruff format
 "scripts/check_architecture.py" = ["N806", "SIM102"]
 # Alembic-generated migration files — do not hand-edit for lint
 "alembic/versions/*.py" = ["E501", "W291", "E402"]
+# ML modules: X_train/y_test etc. follow scikit-learn naming conventions
+"app/ml/*.py" = ["N806", "N803"]
+"tests/unit/ml/*.py" = ["N806", "N803"]
 
 [tool.ruff.format]
 quote-style = "double"

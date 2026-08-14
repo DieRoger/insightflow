@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.middleware.error_handler import register_error_handlers
 from app.api.middleware.request_id import RequestIDMiddleware
-from app.api.routers import analytics, customers, system
+from app.api.routers import analytics, churn, customers, system
 from app.core.config import settings
 from app.core.logging import configure_logging
 
@@ -39,6 +39,7 @@ def create_app() -> FastAPI:
     app.include_router(system.router)
     app.include_router(analytics.router)
     app.include_router(customers.router)
+    app.include_router(churn.router)
 
     return app
 
