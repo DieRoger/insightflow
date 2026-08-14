@@ -156,6 +156,26 @@ class TestIBMTelcoAdapter:
         # churn label mapped to 0/1
         assert set(canonical["churn"]["is_churn"]) == {0, 1}
 
+    def test_service_columns_normalized_to_snake_case(self) -> None:
+        """Service columns must be canonical snake_case, not source CamelCase.
+
+        Regression for the E1 bug: adapter output used PhoneService etc. while
+        the loader expects phone_service — every service column landed NULL.
+        """
+        from app.warehouse.adapters import SERVICE_MAPPING
+
+        adapter = IBMTelcoAdapter()
+        df = make_telco_df()
+        canonical = adapter.to_canonical(df)
+
+        svc = canonical["service"]
+        expected = ["source_customer_id"] + list(SERVICE_MAPPING.values())
+        assert list(svc.columns) == expected
+        # Values are preserved (not NULL) after rename
+        assert svc["phone_service"].notna().all()
+        assert svc["tech_support"].notna().all()
+        assert svc["internet_service"].notna().all()
+
     def test_registry_entry(self) -> None:
         adapter = IBMTelcoAdapter()
         entry = adapter.registry_entry

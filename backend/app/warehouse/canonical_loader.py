@@ -27,15 +27,44 @@ logger = get_logger(__name__)
 
 
 def _bool_map(s: pd.Series) -> pd.Series:
-    """Map Yes/No (and True/False) to Python bool."""
-    return s.map({"Yes": True, "No": False, True: True, False: False, "true": True, "false": False})
+    """Map Yes/No (and True/False) to Python bool.
+
+    Values outside the boolean vocabulary (e.g. 'DSL', 'Fiber optic' in
+    internet_service) are preserved unchanged — never coerced to NaN.
+    """
+    mapping = {"Yes": True, "No": False, "true": True, "false": False}
+    results: list[object] = []
+    for v in s.tolist():
+        if isinstance(v, bool):
+            results.append(v)
+        elif v in mapping:
+            results.append(mapping[v])
+        else:
+            results.append(v)
+    # Return dtype=object so scalar access yields plain Python values
+    return pd.Series(results, index=s.index, dtype=object)
 
 
 def _fill_bool(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
-    """Coerce Yes/No string columns to nullable booleans."""
+    """Coerce Yes/No string columns to nullable booleans.
+
+    Only columns whose values are ALL within the boolean vocabulary are
+    converted. Enum-like columns (e.g. internet_service with 'DSL',
+    'Fiber optic', 'No') keep their string values untouched so they can
+    be stored in a VARCHAR column.
+    """
+    bool_vocab = {"Yes", "No", "true", "false"}
     out = df.copy()
     for col in cols:
-        if col in out.columns:
+        if col not in out.columns:
+            continue
+        values = out[col].dropna().unique()
+        if len(values) == 0:
+            continue
+        # bool dtype columns are already boolean; string columns must be
+        # entirely within the vocabulary to be converted
+        is_bool_dtype = pd.api.types.is_bool_dtype(out[col])
+        if is_bool_dtype or all(v in bool_vocab for v in values):
             out[col] = _bool_map(out[col])
     return out
 
@@ -157,7 +186,17 @@ async def load_canonical(
                         ON CONFLICT (source_customer_id, dataset_id) DO UPDATE SET
                             tenure_months = EXCLUDED.tenure_months,
                             contract_type = EXCLUDED.contract_type,
+                            is_paperless_billing = EXCLUDED.is_paperless_billing,
                             payment_method = EXCLUDED.payment_method,
+                            phone_service = EXCLUDED.phone_service,
+                            multiple_lines = EXCLUDED.multiple_lines,
+                            internet_service = EXCLUDED.internet_service,
+                            online_security = EXCLUDED.online_security,
+                            online_backup = EXCLUDED.online_backup,
+                            device_protection = EXCLUDED.device_protection,
+                            tech_support = EXCLUDED.tech_support,
+                            streaming_tv = EXCLUDED.streaming_tv,
+                            streaming_movies = EXCLUDED.streaming_movies,
                             loaded_at = now()
                         """
                     ),
@@ -300,14 +339,22 @@ async def load_canonical(
 
 
 def _val_bool(row: pd.Series, col: str) -> bool | None:
-    """Return a nullable bool from a row column."""
+    """Return a nullable bool from a row column.
+
+    Only true boolean semantics (Yes/No/True/False) map to bool; any other
+    value (e.g. 'No phone service' in MultipleLines) becomes None rather
+    than a non-bool that the DB would reject.
+    """
     val = row.get(col)
     if val is None or pd.isna(val):
         return None
     if isinstance(val, bool):
         return val
-    result: bool | None = _bool_map(pd.Series([val])).iloc[0]
-    return result
+    mapped = _bool_map(pd.Series([val])).iloc[0]
+    # numpy bool (np.False_/np.True_) is not a Python bool — check both
+    if mapped is True or mapped is False:
+        return bool(mapped)
+    return None
 
 
 # ---------------------------------------------------------------------------

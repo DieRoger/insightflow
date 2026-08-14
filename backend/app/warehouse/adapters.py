@@ -103,6 +103,22 @@ IBM_TELCO_COLUMNS = [
     "Churn",
 ]
 
+# Source → Canonical mapping for the subscription service flags.
+# The canonical schema (dim_subscription) uses snake_case columns; the source
+# dataset uses CamelCase. Normalization happens at the adapter boundary so the
+# canonical loader never sees source-specific column names.
+SERVICE_MAPPING: dict[str, str] = {
+    "PhoneService": "phone_service",
+    "MultipleLines": "multiple_lines",
+    "InternetService": "internet_service",
+    "OnlineSecurity": "online_security",
+    "OnlineBackup": "online_backup",
+    "DeviceProtection": "device_protection",
+    "TechSupport": "tech_support",
+    "StreamingTV": "streaming_tv",
+    "StreamingMovies": "streaming_movies",
+}
+
 
 class IBMTelcoAdapter(SourceAdapter):
     """Adapter for the IBM Telco Customer Churn dataset (Kaggle)."""
@@ -165,21 +181,15 @@ class IBMTelcoAdapter(SourceAdapter):
             ]
         ].copy()
 
-        # service: subscribed services (one-hot → canonical boolean columns)
-        service_cols = [
-            "PhoneService",
-            "MultipleLines",
-            "InternetService",
-            "OnlineSecurity",
-            "OnlineBackup",
-            "DeviceProtection",
-            "TechSupport",
-            "StreamingTV",
-            "StreamingMovies",
-        ]
-        canonical["service"] = df.rename(columns={"customerID": "source_customer_id"})[
-            ["source_customer_id"] + service_cols
-        ].copy()
+        # service: subscribed services (one-hot → canonical boolean columns).
+        # Normalize CamelCase source columns to canonical snake_case at the
+        # adapter boundary so the loader consumes canonical names only.
+        service_cols = list(SERVICE_MAPPING.values())
+        canonical["service"] = (
+            df.rename(columns={"customerID": "source_customer_id"})
+            .rename(columns=SERVICE_MAPPING)[["source_customer_id"] + service_cols]
+            .copy()
+        )
 
         # billing: charges
         canonical["billing"] = df.rename(
