@@ -1,4 +1,5 @@
 """Validate the GitHub Actions workflow YAML."""
+
 import sys
 from pathlib import Path
 
