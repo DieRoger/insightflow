@@ -76,6 +76,16 @@ jobs:
           DATABASE_URL: postgresql+asyncpg://insightflow:insightflow_test@localhost:5432/insightflow_test
         run: uv run alembic upgrade head
 
+      - name: 🧪 Prepare Test Data (seed + mock + ETL + features)
+        env:
+          DATABASE_URL: postgresql+asyncpg://insightflow:insightflow_test@localhost:5432/insightflow_test
+        run: |
+          uv run python scripts/seed_registries.py
+          uv run python scripts/generate_mock_data.py --seed 42 --customers 200 --days 10 --months 3 --weeks 2
+          uv run python scripts/run_etl.py --input-dir data/mock
+          uv run python scripts/generate_features.py
+          uv run python -m app.ml.deploy
+
       - name: 🧪 Unit Tests
         env:
           DATABASE_URL: postgresql+asyncpg://insightflow:insightflow_test@localhost:5432/insightflow_test
