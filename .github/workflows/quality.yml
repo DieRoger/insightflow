@@ -90,12 +90,11 @@ jobs:
           fail_ci_if_error: false
 
   # ------------------------------------------------------------------
-  # Frontend quality gates (runs only when frontend/ exists)
+  # Frontend quality gates (only when frontend/ changes)
   # ------------------------------------------------------------------
   frontend:
     name: Frontend — Lint, Type, Test
     runs-on: ubuntu-latest
-    if: hashFiles('frontend/package.json') != ''
     defaults:
       run:
         working-directory: frontend
@@ -103,7 +102,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check frontend exists
+        id: frontend_exists
+        run: |
+          # working-directory: frontend — verify the directory is present
+          if [ -f package.json ]; then echo "exists=true" >> "$GITHUB_OUTPUT"; else echo "exists=false" >> "$GITHUB_OUTPUT"; fi
+
       - name: Setup Node
+        if: steps.frontend_exists.outputs.exists == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -111,18 +117,23 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
+        if: steps.frontend_exists.outputs.exists == 'true'
         run: npm ci
 
       - name: 🔍 Lint
+        if: steps.frontend_exists.outputs.exists == 'true'
         run: npm run lint
 
       - name: 🔒 Type Check
+        if: steps.frontend_exists.outputs.exists == 'true'
         run: npx tsc --noEmit
 
       - name: 🧪 Tests
+        if: steps.frontend_exists.outputs.exists == 'true'
         run: npm test -- --coverage
 
       - name: 📊 Upload Coverage
+        if: steps.frontend_exists.outputs.exists == 'true'
         uses: codecov/codecov-action@v4
         with:
           file: frontend/coverage/lcov.info
@@ -130,18 +141,22 @@ jobs:
           fail_ci_if_error: false
 
   # ------------------------------------------------------------------
-  # AI prompt regression tests (runs only when AI agents exist)
+  # AI prompt regression tests (only when AI agents exist)
   # ------------------------------------------------------------------
   ai-regression:
     name: AI — Prompt Regression Tests
     runs-on: ubuntu-latest
-    if: hashFiles('backend/app/ai/**') != ''
     defaults:
       run:
         working-directory: backend
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Check AI modules exist
+        id: ai_exists
+        run: |
+          if [ -d app/ai ]; then echo "exists=true" >> "$GITHUB_OUTPUT"; else echo "exists=false" >> "$GITHUB_OUTPUT"; fi
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -154,6 +169,7 @@ jobs:
           uv sync --frozen
 
       - name: 🧪 Prompt Regression Tests
+        if: steps.ai_exists.outputs.exists == 'true'
         env:
           LLM_PROVIDER: mock  # Use mock LLM — no API key needed in CI
         run: uv run pytest tests/ai/test_prompts/ -v
