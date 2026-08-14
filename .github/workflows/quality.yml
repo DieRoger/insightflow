@@ -95,9 +95,6 @@ jobs:
   frontend:
     name: Frontend — Lint, Type, Test
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
 
     steps:
       - uses: actions/checkout@v4
@@ -105,8 +102,11 @@ jobs:
       - name: Check frontend exists
         id: frontend_exists
         run: |
-          # working-directory: frontend — verify the directory is present
-          if [ -f package.json ]; then echo "exists=true" >> "$GITHUB_OUTPUT"; else echo "exists=false" >> "$GITHUB_OUTPUT"; fi
+          if [ -d frontend ] && [ -f frontend/package.json ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Setup Node
         if: steps.frontend_exists.outputs.exists == 'true'
@@ -118,19 +118,19 @@ jobs:
 
       - name: Install dependencies
         if: steps.frontend_exists.outputs.exists == 'true'
-        run: npm ci
+        run: cd frontend && npm ci
 
       - name: 🔍 Lint
         if: steps.frontend_exists.outputs.exists == 'true'
-        run: npm run lint
+        run: cd frontend && npm run lint
 
       - name: 🔒 Type Check
         if: steps.frontend_exists.outputs.exists == 'true'
-        run: npx tsc --noEmit
+        run: cd frontend && npx tsc --noEmit
 
       - name: 🧪 Tests
         if: steps.frontend_exists.outputs.exists == 'true'
-        run: npm test -- --coverage
+        run: cd frontend && npm test -- --coverage
 
       - name: 📊 Upload Coverage
         if: steps.frontend_exists.outputs.exists == 'true'

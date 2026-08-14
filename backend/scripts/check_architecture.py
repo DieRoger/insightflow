@@ -204,13 +204,17 @@ def check_raw_sql_format() -> CheckResult:
 
     # Value-context interpolation: f-string formatting something into a
     # WHERE/VALUES position (the classic injection vector). Column-name
-    # interpolation from constants is allowed.
+    # interpolation from constants is allowed, as is interpolating a
+    # pre-built parameter-placeholder string (e.g. VALUES ({params}) where
+    # params = ":a, :b" — values remain bound, never inlined).
     VALUE_CONTEXT_PATTERNS = [
         r"""f["'].*WHERE\s+\w+\s*=\s*\{""",
         r"""f["'].*WHERE\s+\w+\s+IN\s*\(\s*\{""",
-        r"""f["'].*VALUES\s*\(\s*\{""",
         r"""f["'].*\bset\s+\w+\s*=\s*\{""",
         r"""\.format\(.*WHERE.*\)""",
+        # VALUES with an inlined literal (not a placeholder variable)
+        r"""f["'].*VALUES\s*\(\s*['"]\d+['"]""",
+        r"""f["'].*VALUES\s*\(\s*\$\{""",
     ]
 
     for path in py_files:
