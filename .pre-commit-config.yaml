@@ -1,0 +1,52 @@
+# InsightFlow Pre-commit Hooks
+# Install: pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  # --- Generic code quality ---
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.0
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.14.0
+    hooks:
+      - id: mypy
+        args: [--strict, --ignore-missing-imports]
+        files: ^app/
+        additional_dependencies: [pydantic>=2.0, sqlalchemy>=2.0]
+
+  # --- Project-specific ---
+  - repo: local
+    hooks:
+      - id: architecture-check
+        name: 🏗️ Architecture Rules
+        description: Enforce InsightFlow architecture rules
+        entry: python scripts/check_architecture.py
+        language: python
+        pass_filenames: false
+        always_run: true
+        verbose: true
+
+      - id: no-secrets
+        name: 🔒 No Secrets in Code
+        description: Detect secrets before commit
+        entry: python scripts/check_architecture.py  # extended in future with detect-secrets
+        language: python
+        pass_filenames: false
+        always_run: false  # Optional for now
+
+  # --- Frontend ---
+  - repo: https://github.com/pre-commit/mirrors-eslint
+    rev: v9.0.0
+    hooks:
+      - id: eslint
+        files: ^frontend/.*\.(ts|tsx)$
+        types: [file]
+        additional_dependencies:
+          - eslint@9
+          - '@typescript-eslint/parser@8'
+          - '@typescript-eslint/eslint-plugin@8'

@@ -1,0 +1,192 @@
+name: Quality Gates
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ------------------------------------------------------------------
+  # Backend quality gates
+  # ------------------------------------------------------------------
+  backend:
+    name: Backend — Lint, Type, Test, Architecture
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: insightflow
+          POSTGRES_PASSWORD: insightflow_test
+          POSTGRES_DB: insightflow_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install uv
+          uv sync --frozen
+
+      - name: 🏗️ Architecture Rules Check
+        run: python scripts/check_architecture.py --json
+
+      - name: 🔍 Lint (Ruff)
+        run: ruff check .
+
+      - name: 📝 Format Check
+        run: ruff format --check .
+
+      - name: 🔒 Type Check (Mypy)
+        run: mypy app/ --strict --ignore-missing-imports
+
+      - name: 🧪 Unit Tests
+        env:
+          DATABASE_URL: postgresql+asyncpg://insightflow:insightflow_test@localhost:5432/insightflow_test
+          REDIS_URL: redis://localhost:6379/0
+        run: pytest tests/ -v --cov=app --cov-report=term --cov-report=xml --cov-fail-under=80
+
+      - name: 📊 Upload Coverage
+        uses: codecov/codecov-action@v4
+        with:
+          file: backend/coverage.xml
+          flags: backend
+          fail_ci_if_error: false
+
+  # ------------------------------------------------------------------
+  # Frontend quality gates
+  # ------------------------------------------------------------------
+  frontend:
+    name: Frontend — Lint, Type, Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: 🔍 Lint
+        run: npm run lint
+
+      - name: 🔒 Type Check
+        run: npx tsc --noEmit
+
+      - name: 🧪 Tests
+        run: npm test -- --coverage
+
+      - name: 📊 Upload Coverage
+        uses: codecov/codecov-action@v4
+        with:
+          file: frontend/coverage/lcov.info
+          flags: frontend
+          fail_ci_if_error: false
+
+  # ------------------------------------------------------------------
+  # AI prompt regression tests
+  # ------------------------------------------------------------------
+  ai-regression:
+    name: AI — Prompt Regression Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    # Only run when AI prompts or agents change
+    # Remove 'paths' filter for full coverage
+    # paths:
+    #   - 'backend/app/ai/**'
+    #   - 'backend/tests/ai/**'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install uv
+          uv sync --frozen
+
+      - name: 🧪 Prompt Regression Tests
+        env:
+          LLM_PROVIDER: mock  # Use mock LLM — no API key needed in CI
+        run: pytest tests/ai/test_prompts/ -v
+
+  # ------------------------------------------------------------------
+  # Security scan
+  # ------------------------------------------------------------------
+  security:
+    name: Security — Bandit + Dependency Audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install uv bandit
+          uv sync --frozen
+
+      - name: 🔒 Security Scan (Bandit)
+        run: bandit -r app/ -ll -f json -o bandit-report.json
+
+      - name: 🔒 Dependency Audit
+        run: pip audit
+
+      - name: 📊 Upload Security Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-report
+          path: backend/bandit-report.json
