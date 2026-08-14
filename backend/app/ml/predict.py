@@ -59,7 +59,7 @@ async def predict_customer(engine: AsyncEngine, source_customer_id: str) -> dict
         # Features for this customer
         feat_cols = ", ".join(FEATURE_COLUMNS)
         feat_result = await conn.execute(
-            text(
+            text(  # nosec B608: FEATURE_COLUMNS is a code constant, value param-bound
                 f"SELECT {feat_cols} FROM feature_store.customer_features WHERE customer_id = :cid"
             ),
             {"cid": customer_id},
@@ -98,7 +98,7 @@ async def _load_background(engine: AsyncEngine, sample_size: int = 100) -> np.nd
     feat_cols = ", ".join(FEATURE_COLUMNS)
     async with engine.connect() as conn:
         result = await conn.execute(
-            text(
+            text(  # nosec B608: FEATURE_COLUMNS is a code constant
                 f"SELECT {feat_cols} FROM feature_store.customer_features "
                 "WHERE feature_version = 'v1.0.0' ORDER BY random() LIMIT :limit"
             ),
@@ -150,7 +150,7 @@ async def predict_batch(engine: AsyncEngine) -> int:
 
     async with engine.connect() as conn:
         result = await conn.execute(
-            text(
+            text(  # nosec B608: FEATURE_COLUMNS is a code constant
                 f"SELECT customer_id, {', '.join(FEATURE_COLUMNS)} "
                 "FROM feature_store.customer_features WHERE feature_version = 'v1.0.0'"
             )

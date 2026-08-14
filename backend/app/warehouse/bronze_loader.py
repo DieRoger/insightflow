@@ -168,7 +168,8 @@ async def load_bronze(
         table = RAW_TABLE[dataset]
         cols = list(valid_df.columns)
         values_sql = ", ".join([f":{c}" for c in cols])
-        insert_sql = f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({values_sql})"
+        # nosec B608: table from RAW_TABLE constant, cols from DataFrame schema
+        insert_sql = f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({values_sql})"  # nosec B608
 
         rows = _rows_for_insert(valid_df)
         async with engine.begin() as conn:

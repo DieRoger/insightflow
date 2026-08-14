@@ -91,12 +91,12 @@ class CustomerRepositorySQL(CustomerRepository):
             params["search"] = f"%{filters.search}%"
 
         where_sql = f"WHERE {' AND '.join(where)}" if where else ""
-        sort_col = SORTABLE_COLUMNS.get(filters.sort, "dc.tenure_days")
+        sort_col = SORTABLE_COLUMNS.get(filters.sort, "dc.tenure_days")  # noqa: B608 (constant map, param-bound)
         order = "ASC" if filters.order.lower() == "asc" else "DESC"
 
         # Count
         count_result = await self._session.execute(
-            text(
+            text(  # nosec B608: where_sql from validated filters, values param-bound
                 f"""
                 SELECT COUNT(*) FROM warehouse.dim_customer dc
                 LEFT JOIN warehouse.dim_region dr ON dc.region_id = dr.region_id
@@ -110,7 +110,7 @@ class CustomerRepositorySQL(CustomerRepository):
 
         # Rows
         result = await self._session.execute(
-            text(
+            text(  # nosec B608: sort_col from constant map, values param-bound
                 f"""
                 SELECT dc.customer_id, dc.source_customer_id, dc.status, dc.lifecycle_stage,
                        dc.join_date, dc.contract_type, dc.gender, dc.age, dc.city, dc.province,

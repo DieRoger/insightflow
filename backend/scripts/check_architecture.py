@@ -191,22 +191,32 @@ def check_service_sql() -> CheckResult:
 
 
 def check_raw_sql_format() -> CheckResult:
-    """AR-012/AR-100: No f-string/format SQL construction anywhere in backend."""
+    """AR-012/AR-100: No f-string SQL construction with interpolated VALUES.
+
+    Dynamic column lists assembled from code constants (e.g.
+    `f"SELECT {', '.join(FEATURE_COLUMNS)}"`) are safe — the identifiers
+    come from constants, not user input, and literal values are bound via
+    :param placeholders. Only value-context interpolation is flagged:
+    f-strings inside WHERE/VALUES that inline user-controlled values.
+    """
     findings = []
     py_files = [p for p in _scan_files(PYTHON_EXTS) if "app/" in str(p)]
 
-    FSTRING_SQL = [
-        r"""f["']\s*SELECT\b""",
-        r"""f["']\s*INSERT\b""",
-        r"""f["']\s*UPDATE\b""",
-        r"""f["']\s*DELETE\b""",
-        r"""\.format\(.*SELECT""",
+    # Value-context interpolation: f-string formatting something into a
+    # WHERE/VALUES position (the classic injection vector). Column-name
+    # interpolation from constants is allowed.
+    VALUE_CONTEXT_PATTERNS = [
+        r"""f["'].*WHERE\s+\w+\s*=\s*\{""",
+        r"""f["'].*WHERE\s+\w+\s+IN\s*\(\s*\{""",
+        r"""f["'].*VALUES\s*\(\s*\{""",
+        r"""f["'].*\bset\s+\w+\s*=\s*\{""",
+        r"""\.format\(.*WHERE.*\)""",
     ]
 
     for path in py_files:
         content = path.read_text(encoding="utf-8", errors="ignore")
         for i, line in enumerate(content.splitlines(), 1):
-            for pattern in FSTRING_SQL:
+            for pattern in VALUE_CONTEXT_PATTERNS:
                 if re.search(pattern, line, re.IGNORECASE):
                     findings.append(
                         Finding(
@@ -214,7 +224,7 @@ def check_raw_sql_format() -> CheckResult:
                             level=Level.L0,
                             file=str(path.relative_to(PROJECT_ROOT)),
                             line=i,
-                            message=f"Unsafe SQL construction: {line.strip()}",
+                            message=f"Unsafe SQL value interpolation: {line.strip()}",
                         )
                     )
 

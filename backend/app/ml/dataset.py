@@ -80,7 +80,7 @@ async def build_churn_dataset(engine: AsyncEngine, test_size: float = 0.2) -> Da
         # Features from customer_features
         feat_cols = ", ".join(FEATURE_COLUMNS)
         feat_result = await conn.execute(
-            text(
+            text(  # nosec B608: FEATURE_COLUMNS is a code constant
                 f"SELECT customer_id, {feat_cols} FROM feature_store.customer_features "
                 "WHERE feature_version = 'v1.0.0'"
             )

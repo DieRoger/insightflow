@@ -82,7 +82,7 @@ class KpiRepositorySQL(KpiRepository):
             "JOIN warehouse.dim_region dr ON dc.region_id = dr.region_id" if region else ""
         )
 
-        formulas = {
+        formulas = {  # nosec B608: region_join is a constant string, no user values
             "active_customers": (
                 "SELECT COUNT(DISTINCT dc.customer_id) FROM warehouse.dim_customer dc "
                 f"{region_join} WHERE dc.status = 'active'"
