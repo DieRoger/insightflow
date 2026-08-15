@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.core.logging import configure_logging  # noqa: E402
 from app.infrastructure.database.session import engine  # noqa: E402
 from app.warehouse.adapters import IBMTelcoAdapter  # noqa: E402
+from app.warehouse.profiling import profile_dataframe  # noqa: E402
 from app.warehouse.quality import persist_quality_report, run_quality_checks  # noqa: E402
 
 RAW_DIR = Path(__file__).resolve().parent.parent / "data" / "raw"
@@ -149,9 +150,26 @@ async def ingest(dataset_name: str, skip_download: bool = False) -> None:
             return
         print(f"[download] SKIPPED — using existing {csv_path.name}")
 
-    # 3. Load raw + run quality checks
+    # 3. Load raw + profile + run quality checks
     df = adapter.load_raw(csv_path)
     print(f"[raw] {len(df):,} rows × {df.shape[1]} cols")
+
+    # Dataset profiling — descriptive stats before quality gating
+    profiling_report = profile_dataframe(df, entry.dataset_id)
+    print("\n=== Dataset Profile ===")
+    print(
+        f"Dataset: {entry.dataset_id}   Shape: {profiling_report.rows:,} × {profiling_report.columns}"
+    )
+    for ns in profiling_report.numeric[:5]:
+        print(
+            f"  [num] {ns.column}: missing={ns.missing} ({ns.missing_ratio:.1%}), "
+            f"range=[{ns.min}, {ns.max}], mean={ns.mean:.2f}, std={ns.std:.2f}"
+        )
+    for cs in profiling_report.categorical[:5]:
+        print(
+            f"  [cat] {cs.column}: missing={cs.missing} ({cs.missing_ratio:.1%}), "
+            f"unique={cs.unique}, top={cs.top_values[:2]}"
+        )
 
     report = run_quality_checks(
         df,
