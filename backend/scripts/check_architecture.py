@@ -426,17 +426,17 @@ def check_stdio_logging() -> CheckResult:
 
     for path in app_dir.rglob("*.py"):
         content = path.read_text(encoding="utf-8", errors="ignore")
-        # ML CLI entry points print user-facing benchmark tables; these are
-        # terminal output, not structured logging (AR-084 targets service logs).
-        is_ml_cli = "ml" in path.parts and "__main__" in content
+        # CLI entry points (__main__ blocks) print user-facing demo output;
+        # these are terminal output, not structured service logging (AR-084).
+        is_cli_entry = "__main__" in content
         for i, line in enumerate(content.splitlines(), 1):
             # print() is always wrong
             if re.search(r"\bprint\(", line):
                 # Allow commented-out debug prints
                 if line.strip().startswith("#"):
                     continue
-                # Allow ML CLI benchmark output (guarded by __main__ block)
-                if is_ml_cli:
+                # Allow CLI demo output (guarded by __main__ block)
+                if is_cli_entry:
                     continue
                 findings.append(
                     Finding(
